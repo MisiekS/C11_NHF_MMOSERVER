@@ -50,6 +50,9 @@ public:
 
         return false;
     }
+    static bool indistance(short x1,short y1,short x2,short y2,short d){
+        return std::abs(x1-x2)<=d && std::abs(y1-y2)<=d;
+    }
 };
 
 #endif

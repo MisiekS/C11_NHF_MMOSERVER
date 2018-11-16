@@ -34,7 +34,7 @@ class ActionServer {
     boost::asio::io_context &io_context;
     std::set<std::shared_ptr<Monster>> &monsters;
     std::mutex &monsters_guard;
-    std::map<udp::endpoint, std::chrono::steady_clock::time_point> endpoints_of_last_min;
+    std::map<std::pair<udp::endpoint,std::shared_ptr<Player>>, std::chrono::steady_clock::time_point> endpoints_of_last_min;
     std::mutex endpoints_of_last_min_guard;
     udp::socket socket_;
     udp::endpoint remote_endpoint_;

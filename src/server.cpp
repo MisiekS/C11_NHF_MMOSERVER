@@ -4,7 +4,7 @@ void Server::run() {
     bool doexit = false;
 
     // creating monsters here please
-    while (monsters.size() < 5000) {
+    while (monsters.size() < 10000) {
         short x, y;
         do {
             x = static_cast<short>(rand());
@@ -32,8 +32,17 @@ void Server::run() {
 
     while (!doexit) {
         std::string cmd;
-        std::cin >> cmd;
+        std::getline(std::cin,cmd);
         if (cmd == "exit") doexit = true;
+        if (cmd[0] == 's'){
+            cmd+='\n';
+            std::vector<char> cc {cmd.begin(),cmd.end()};
+            auto c = Command::get(cc);
+            {
+                std::lock_guard<std::mutex> lock{monsters_guard};
+                monsters.insert(std::make_shared<Monster>(boost::lexical_cast<int>(c[1]),boost::lexical_cast<short>(c[2]),boost::lexical_cast<short>(c[3])));
+            }
+        }
     }
     io_as.stop();
     as_t.join();

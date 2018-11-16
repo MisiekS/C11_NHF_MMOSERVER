@@ -12,8 +12,9 @@ void InformationServer::run() {
 void InformationServer::loop(bool &run_loop) {
     std::cout << "information server loop" << std::endl;
     srand(time(NULL));
+    int count = 0;
     while (run_loop) {
-        if ( monsters.size()<6000 && (rand() % 100) == 1) {
+        if (monsters.size() < 10000 && (rand() % 100) == 1) {
             short x, y;
             do {
                 x = static_cast<short>(rand());
@@ -25,12 +26,13 @@ void InformationServer::loop(bool &run_loop) {
             std::lock_guard<std::mutex> lock(monsters_guard);
             auto newmonster = std::make_shared<Monster>(rand() % 1000000 + 10000, x, y);
             monsters.insert(newmonster);
-            messages.push(Command::create().add('M').add(newmonster->getId()).add(newmonster->getHealth()).add(
+            messages.push(Command::create().add('M').add(newmonster->getId()).add(
+                    newmonster->getHealth()).add(
                     newmonster->getX()).add(
                     newmonster->getY()).getMessage());
         }
-
-        messages.push(Command::create().add('p').add("pingellekgeco").getMessage());//debug
+        if (count % 100)
+            messages.push(Command::create().add('p').add("pingellekgeco").getMessage());//debug
         while (!messages.empty()) {
             std::lock_guard<std::mutex> lock(players_guard);
             for (auto player : players)
@@ -40,9 +42,11 @@ void InformationServer::loop(bool &run_loop) {
                                     boost::asio::placeholders::error,
                                     boost::asio::placeholders::bytes_transferred));
             if (messages.front()[0] != 'p')
-                std::cout <<"tcp: " << std::string(messages.front().begin(), messages.front().end());
+                std::cout << "tcp: "
+                          << std::string(messages.front().begin(), messages.front().end());
             messages.pop();
         }
+        count++;
         std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }
 }
@@ -103,7 +107,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                         std::cout << "logging in" << std::endl;
                         if (player != nullptr) {
                             // send back it was success
-                            auto suc_message = Command::create().add("yeay").add(username).add("withid").add(
+                            auto suc_message = Command::create().add("yeay").add(username).add(
+                                    "withid").add(
                                     player->getId()).add(player->getSecret()).getMessage();
                             socket->async_send(
                                     boost::asio::buffer(suc_message),
@@ -124,24 +129,30 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                     .add(player->getY()).getMessage();
 
                             messages.push(loginmessage);
-                            //send him the current state
-                            //i mean players and monsters
+                            //todo not all please
                             std::queue<std::vector<char>> login_messages;
                             {
                                 std::lock_guard<std::mutex> lock(players_guard);
-                                for(auto p:players)
-                                    login_messages.push(Command::create().add('0').add(p.second->getUsername())
-                                                                .add(p.second->getId()).add(p.second->getX())
-                                                                .add(p.second->getY()).getMessage());
+                                for (auto p:players)
+                                    if (Tile::indistance(p.second->getX(), p.second->getY(),
+                                                       player->getX(), player->getY(),50))
+                                        login_messages.push(Command::create().add('0').add(
+                                                        p.second->getUsername())
+                                                                    .add(p.second->getId()).add(
+                                                        p.second->getX())
+                                                                    .add(p.second->getY()).getMessage());
                             }
                             {
                                 std::lock_guard<std::mutex> lock(monsters_guard);
-                                for(auto m:monsters)
-                                    login_messages.push(Command::create().add('M').add(m->getId()).add(m->getHealth()).add(
-                                            m->getX()).add(
-                                            m->getY()).getMessage());
+                                for (auto m:monsters)
+                                    if (Tile::indistance(m->getX(),m->getY(),player->getX(),player->getY(),50))
+                                        login_messages.push(
+                                                Command::create().add('M').add(m->getId()).add(
+                                                        m->getHealth()).add(
+                                                        m->getX()).add(
+                                                        m->getY()).getMessage());
                             }
-                            while(!login_messages.empty()) {
+                            while (!login_messages.empty()) {
                                 socket->async_send(
                                         boost::asio::buffer(login_messages.front()),
                                         boost::bind(&InformationServer::handleSend, this,
@@ -177,7 +188,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                         db->save(player);
                         players.erase(players.find(player_id));
                         std::string username = player->getUsername();
-                        auto logoutmessage = Command::create().add('1').add(player->getId()).getMessage();
+                        auto logoutmessage = Command::create().add('1').add(
+                                player->getId()).getMessage();
                         messages.push(logoutmessage);
                         socket->close();
                         std::cout << player_id << " succesfully logged out" << std::endl;
@@ -191,7 +203,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                         std::string password = received[2];
                         if (db->registration(username, password)) {
                             // send back it success
-                            auto suc_reg_message = Command::create().add("yeay").add(username).getMessage();
+                            auto suc_reg_message = Command::create().add("yeay").add(
+                                    username).getMessage();
                             socket->async_send(
                                     boost::asio::buffer(suc_reg_message),
                                     boost::bind(&InformationServer::handleSend, this,
@@ -199,7 +212,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                                 boost::asio::placeholders::bytes_transferred));
                         } else {
                             std::string succ_message = "nope " + username;
-                            auto fail_reg_message = Command::create().add("nope").add(username).getMessage();
+                            auto fail_reg_message = Command::create().add("nope").add(
+                                    username).getMessage();
                             socket->async_send(
                                     boost::asio::buffer(fail_reg_message),
                                     boost::bind(&InformationServer::handleSend, this,
@@ -209,7 +223,11 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                     }
                     break;
 
-                    // asking data by id for monster/ for player
+                    //todo asking data by id for monster/ for player
+                case 'M':
+                    break;
+                case 'P':
+                    break;
 
                 default:
                     break;
@@ -227,7 +245,7 @@ void InformationServer::handleSend(const boost::system::error_code &error,
                                    std::size_t bytes_transferred) {
     //TODO
     if (error) {
-        std::cout << "error" << std::endl;
+        std::cout << "tcp error" << std::endl;
         //too much error -> logout
     }
 }

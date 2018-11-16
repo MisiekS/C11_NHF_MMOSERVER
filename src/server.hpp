@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <boost/lexical_cast.hpp>
 
 #include "actionserver.hpp"
 #include "informationserver.hpp"
