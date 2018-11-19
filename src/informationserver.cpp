@@ -211,7 +211,6 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                                 boost::asio::placeholders::error,
                                                 boost::asio::placeholders::bytes_transferred));
                         } else {
-                            std::string succ_message = "nope " + username;
                             auto fail_reg_message = Command::create().add("nope").add(
                                     username).getMessage();
                             socket->async_send(

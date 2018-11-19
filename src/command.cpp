@@ -85,7 +85,7 @@ std::vector<std::string> Command::get(std::vector<char> & value){
         std::stringstream ss(std::string(value.begin(),check));
         std::istream_iterator<std::string> begin(ss);
         std::istream_iterator<std::string> end;
-        value.erase(value.begin(),check);
+        value.erase(value.begin(),check+1);
         return {begin, end};
     }
     else return {};

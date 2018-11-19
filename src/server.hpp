@@ -27,7 +27,7 @@ class Server {
     unsigned short port;
 
 public:
-    Server(unsigned short port) : port{port}, field{monsters, players} {
+    explicit Server(unsigned short port) : port{port}, field{monsters, players} {
 
     }
 
