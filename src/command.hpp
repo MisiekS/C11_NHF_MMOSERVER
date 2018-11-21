@@ -23,6 +23,7 @@ public:
     std::vector<char> getMessage();
     static Command create();
     static std::vector<std::string> get(std::vector<char> & value);
+    static std::vector<std::string> getUdp(std::vector<char> & value);
 };
 
 

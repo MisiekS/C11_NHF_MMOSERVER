@@ -91,3 +91,14 @@ std::vector<std::string> Command::get(std::vector<char> & value){
     else return {};
 }
 
+std::vector<std::string> Command::getUdp(std::vector<char> & value){
+    auto check = std::find(value.begin(),value.end(),'\n');
+    if(check!=value.end()) {
+        std::stringstream ss(std::string(value.begin(),check));
+        std::istream_iterator<std::string> begin(ss);
+        std::istream_iterator<std::string> end;
+        return {begin, end};
+    }
+    else return {};
+}
+

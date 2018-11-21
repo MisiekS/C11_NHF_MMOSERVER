@@ -57,6 +57,9 @@ public:
               db{std::make_shared<Database>("db.sqlite3")} {}
 
     void run();
+    static void MonsterCreation(bool &run,std::set<std::shared_ptr<Monster>> &monsters,
+                                               std::mutex &monsters_guard,
+                                               Tile &field);
 
 private:
     void handleRead(std::shared_ptr<tcp::socket> socket,
@@ -70,6 +73,9 @@ private:
 
     void handleSend(const boost::system::error_code &error,
                     std::size_t bytes_transferred);
+
+
 };
+
 
 #endif

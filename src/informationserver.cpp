@@ -14,7 +14,7 @@ void InformationServer::loop(bool &run_loop) {
     srand(time(NULL));
     int count = 0;
     while (run_loop) {
-        if (monsters.size() < 10000 && (rand() % 100) == 1) {
+        /*if (monsters.size() < 10000 && (rand() % 100) == 1) {
             short x, y;
             do {
                 x = static_cast<short>(rand());
@@ -30,7 +30,7 @@ void InformationServer::loop(bool &run_loop) {
                     newmonster->getHealth()).add(
                     newmonster->getX()).add(
                     newmonster->getY()).getMessage());
-        }
+        }*/
         if (count % 100)
             messages.push(Command::create().add('p').add("pingellekgeco").getMessage());//debug
         while (!messages.empty()) {
@@ -85,9 +85,9 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
     if (!err) {
         auto &f = *buff;
         if (!f.empty()) {
-            std::cout << std::string(f.begin(), f.end()) << std::endl;
+            // std::cout << std::string(f.begin(), f.end()) << std::endl;
             cmd->insert(cmd->end(), f.begin(), std::find(f.begin(), f.end(), 0));
-            std::cout << std::string(cmd->begin(), cmd->end()) << std::endl;
+            //   std::cout << std::string(cmd->begin(), cmd->end()) << std::endl;
         }
 
         auto received = Command::get(*cmd);
@@ -123,19 +123,12 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                     players.erase(player->getId());
                                 players.insert(std::make_pair(player->getId(), player));
                             }
-
-                            auto loginmessage = Command::create().add('0').add(username)
-                                    .add(player->getId()).add(player->getX())
-                                    .add(player->getY()).getMessage();
-
-                            messages.push(loginmessage);
-                            //todo not all please
                             std::queue<std::vector<char>> login_messages;
                             {
                                 std::lock_guard<std::mutex> lock(players_guard);
                                 for (auto p:players)
                                     if (Tile::indistance(p.second->getX(), p.second->getY(),
-                                                       player->getX(), player->getY(),50))
+                                                         player->getX(), player->getY(), 50))
                                         login_messages.push(Command::create().add('0').add(
                                                         p.second->getUsername())
                                                                     .add(p.second->getId()).add(
@@ -145,7 +138,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                             {
                                 std::lock_guard<std::mutex> lock(monsters_guard);
                                 for (auto m:monsters)
-                                    if (Tile::indistance(m->getX(),m->getY(),player->getX(),player->getY(),50))
+                                    if (Tile::indistance(m->getX(), m->getY(), player->getX(),
+                                                         player->getY(), 50))
                                         login_messages.push(
                                                 Command::create().add('M').add(m->getId()).add(
                                                         m->getHealth()).add(
@@ -222,10 +216,35 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                     }
                     break;
 
-                    //todo asking data by id for monster/ for player
                 case 'M':
+                    if (received.size() > 1) {
+
+                        auto mm = *std::find_if(monsters.begin(), monsters.end(), [&](auto &it) {
+                            return it->getId() == boost::lexical_cast<int>(received[1]);
+                        });
+                        socket->async_send(
+                                boost::asio::buffer(Command::create().add('M').add(mm->getId()).add(
+                                        mm->getHealth()).add(
+                                        mm->getX()).add(
+                                        mm->getY()).getMessage()),
+                                boost::bind(&InformationServer::handleSend, this,
+                                            boost::asio::placeholders::error,
+                                            boost::asio::placeholders::bytes_transferred));
+                    }
                     break;
                 case 'P':
+                    if (received.size() > 1) {
+                        auto mm = players[boost::lexical_cast<unsigned short>(received[1])];
+                        socket->async_send(
+                                boost::asio::buffer(Command::create().add('0').add(
+                                                mm->getUsername())
+                                                            .add(mm->getId()).add(
+                                                mm->getX())
+                                                            .add(mm->getY()).getMessage()),
+                                boost::bind(&InformationServer::handleSend, this,
+                                            boost::asio::placeholders::error,
+                                            boost::asio::placeholders::bytes_transferred));
+                    }
                     break;
 
                 default:
@@ -246,5 +265,27 @@ void InformationServer::handleSend(const boost::system::error_code &error,
     if (error) {
         std::cout << "tcp error" << std::endl;
         //too much error -> logout
+    }
+}
+
+
+void InformationServer::MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
+                              std::mutex &monsters_guard,
+                              Tile &field) {
+    //todo make it much better please
+    while (run ) {
+        if(monsters.size() < 1000000000) {
+            short x, y;
+            do {
+                x = static_cast<short>(rand());
+                y = static_cast<short>(rand());
+            } while (field.blocking(x, y) ||
+                     field.blocking(x + 1, y) ||
+                     field.blocking(x + 1, y + 1) ||
+                     field.blocking(x, y + 1));
+            std::lock_guard<std::mutex> lock(monsters_guard);
+            monsters.insert(std::make_shared<Monster>(rand() % 1000000 + 10000, x, y));
+        } else
+            std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }
 }

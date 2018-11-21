@@ -22,10 +22,11 @@ void ActionServer::start_receive() {
 void ActionServer::handle_receive(const boost::system::error_code &error,
                                   std::size_t /*bytes_transferred*/) {
     if (!error || error == boost::asio::error::message_size) {
-        std::cout << "udp:" << buffer.size();
-        std::cout << std::string(buffer.begin(), buffer.end()) << std::endl;
+  //      std::cout << "udp:" << buffer.size() << " ";
+//        std::cout << std::string(buffer.begin(), buffer.end()) << std::endl;
 
-        auto cmd = Command::get(buffer);
+        auto cmd = Command::getUdp(buffer);
+        buffer.reserve(256);
         if (cmd.size() > 2) {
             auto player = players.find(boost::lexical_cast<unsigned short>(cmd[1]))->second;
             if (player->getSecret() == cmd[2]) {
@@ -75,22 +76,22 @@ void ActionServer::handle_receive(const boost::system::error_code &error,
                             player->setDirection(dir);
                             bool blocking = false;
                             switch (dir) {
-                                case South:
+                                case West:
                                     blocking = field.blocking(
                                             static_cast<short>(player->getX() - 1), player->getY());
                                     break;
-                                case North:
-                                    blocking = field.blocking(
-                                            static_cast<short>(player->getX() + 1), player->getY());
-                                    break;
                                 case East:
-                                    blocking = field.blocking(player->getX(),
-                                                              static_cast<short>(player->getY() +
-                                                                                 1));
+                                    blocking = field.blocking(
+                                            static_cast<short>(player->getX()+1), player->getY());
                                     break;
-                                case West:
+                                case North:
                                     blocking = field.blocking(player->getX(),
                                                               static_cast<short>(player->getY() -
+                                                                                 1));
+                                    break;
+                                case South:
+                                    blocking = field.blocking(player->getX(),
+                                                              static_cast<short>(player->getY() +
                                                                                  1));
                                     break;
                             }
@@ -104,9 +105,8 @@ void ActionServer::handle_receive(const boost::system::error_code &error,
                         }
                         break;
                     case 'S':
-                        if (player->getAction().cancelable() &&
-                            player->getActions() != Actions::Attack)
-                            player->getAction() = Action{PlayerActionTimes::Stand, Actions::Stand};
+                        //todo
+                            player->getAction().setLast(true);
                         break;
                     default:
                         break;
@@ -130,26 +130,6 @@ void ActionServer::loop(bool &run_loop) {
         {
             std::lock_guard<std::mutex> lock(players_guard);
             for (auto p:players) {
-                if (p.second->getActions() == Actions::Move && p.second->getActionpercent() > 60 &&
-                    !p.second->getAction().getCompleted()){
-                    p.second->getAction().setCompleted(true);
-
-                switch (p.second->getDir()) {
-                    case North:
-                        p.second->setY(p.second->getY() + 1);
-                        break;
-                    case South:
-                        p.second->setY(p.second->getY() - 1);
-                        break;
-                    case East:
-                        p.second->setX(p.second->getX() + 1);
-                        break;
-                    case West:
-                        p.second->setX(p.second->getX() - 1);
-                        break;
-                }
-                }
-
                 if (p.second->getActions() == Actions::Attack &&
                     p.second->getActionpercent() > 50 &&
                     !p.second->getAction().getCompleted()) {
@@ -163,11 +143,11 @@ void ActionServer::loop(bool &run_loop) {
                             switch (p.second->getDir()) {
                                 case North:
                                     cord.first = p.second->getX();
-                                    cord.second = p.second->getY() + 1;
+                                    cord.second = p.second->getY() - 1;
                                     break;
                                 case South:
                                     cord.first = p.second->getX();
-                                    cord.second = p.second->getY() - 1;
+                                    cord.second = p.second->getY() + 1;
                                     break;
                                 case East:
                                     cord.first = p.second->getX() + 1;
@@ -204,9 +184,29 @@ void ActionServer::loop(bool &run_loop) {
 
                 if ((p.second->getActions() == Actions::Attack ||
                      p.second->getActions() == Actions::Move)
-                    && p.second->getActionpercent() >= 100)
-                    p.second->getAction() = Action{PlayerActionTimes::Stand, Actions::Stand};
-
+                    && p.second->getActionpercent() >= 99) {
+                    if (p.second->getActions() == Actions::Move)
+                        switch (p.second->getDir()) {
+                            case North:
+                                p.second->setY(p.second->getY() - 1);
+                                break;
+                            case South:
+                                p.second->setY(p.second->getY() + 1);
+                                break;
+                            case East:
+                                p.second->setX(p.second->getX() + 1);
+                                break;
+                            case West:
+                                p.second->setX(p.second->getX() - 1);
+                                break;
+                        }
+                    if (p.second->getAction().getLast())
+                        p.second->getAction() = Action{PlayerActionTimes::Stand, Actions::Stand};
+                    else if (p.second->getActions() == Actions::Attack)
+                        p.second->getAction() = Action{PlayerActionTimes::Attack, Actions::Attack};
+                    else
+                        p.second->getAction() = Action{PlayerActionTimes::Move, Actions::Move};
+                }
                 current_messages.push_back(
                         std::make_pair(std::make_pair(p.second->getX(), p.second->getY()),
                                        Command::create().add('X').add(p.second->getId()).add(
@@ -248,7 +248,7 @@ void ActionServer::loop(bool &run_loop) {
                                   endpoints_of_last_min.erase(it.first);
                           });
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }
 }
 

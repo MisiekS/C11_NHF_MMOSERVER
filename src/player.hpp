@@ -17,6 +17,7 @@ class Player {
     short x, y;
     Directions direction;
     Action action;
+    short action_counter = 0;
     std::shared_ptr<tcp::socket> tcp_socket;
     std::string secret;
 

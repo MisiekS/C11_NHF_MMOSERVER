@@ -11,7 +11,7 @@
 
 class Tile {
     std::set<std::shared_ptr<Monster>> &monsters;
-    std::map<unsigned short, std::shared_ptr<Player>> players;
+    std::map<unsigned short, std::shared_ptr<Player>>& players;
 
 public:
     Tile(std::set<std::shared_ptr<Monster>> &monsters, std::map<unsigned short, std::shared_ptr<Player>> &players)
@@ -20,30 +20,32 @@ public:
     bool blocking(short x, short y) const noexcept {
         if (x * x + y * y > 30000 * 30000)return true;
 
-        if (!(x * y % 47))return true;
+        if (((x+(y*66536))%87)==0)return true;
         for (auto m: monsters)
-            if (m->getX() == x || m->getY() == y || m->getX() + 1 == x || m->getY() + 1 == y)
+            //todo wtf its not even good
+            if ((m->getX() == x && m->getY() == y) || (m->getX() == x && m->getY()+1 == y)
+            || (m->getX()+1 == x && m->getY() == y) || (m->getX()+1 == x && m->getY()+1 == y))
                 return true;
 
         for (auto p:players)
-            if (p.second->getX() == x || p.second->getY() == y)
+            if (p.second->getX() == x && p.second->getY() == y)
                 return true;
-            else if (p.second->getActions() == Actions::Move && !p.second->getAction().getCompleted())
+            else if (p.second->getActions() == Actions::Move)
                 switch (p.second->getDir()) {
                     case South:
-                        if(p.second->getX()-1==x && p.second->getY()==y)
-                            return true;
-                        break;
-                    case North:
-                        if(p.second->getX()+1==x && p.second->getY()==y)
-                            return true;
-                        break;
-                    case East:
                         if(p.second->getX()==x && p.second->getY()+1==y)
                             return true;
                         break;
-                    case West:
+                    case North:
                         if(p.second->getX()==x && p.second->getY()-1==y)
+                            return true;
+                        break;
+                    case East:
+                        if(p.second->getX()+1==x && p.second->getY()==y)
+                            return true;
+                        break;
+                    case West:
+                        if(p.second->getX()-1==x && p.second->getY()==y)
                             return true;
                         break;
                 }

@@ -24,7 +24,7 @@ public:
     void hit(int value){
         health-=value;
     }
-};
 
+};
 
 #endif
