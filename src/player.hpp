@@ -17,7 +17,7 @@ class Player {
     short x, y;
     Directions direction;
     Action action;
-    short action_counter = 0;
+    int action_counter = 0;
     std::shared_ptr<tcp::socket> tcp_socket;
     std::string secret;
 
@@ -25,6 +25,11 @@ public:
     Player(std::string &username, unsigned short id, short x, short y, std::string &secret)
             : username{username}, id{id}, x{x}, y{y}, direction{South}, secret{secret},
               action{std::chrono::milliseconds{0}, Actions::Stand} {}
+
+    void setAction(Action &&a) {
+        action = a;
+        ++action_counter;
+    }
 
     void setX(short x_) { x = x_; }
 
@@ -55,6 +60,10 @@ public:
     short getActionpercent() const { return action.getPercent(); }
 
     Directions getDir() const { return direction; }
+
+    int getActionNumber() const noexcept {
+        return action_counter;
+    }
 };
 
 #endif

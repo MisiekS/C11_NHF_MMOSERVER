@@ -14,23 +14,6 @@ void InformationServer::loop(bool &run_loop) {
     srand(time(NULL));
     int count = 0;
     while (run_loop) {
-        /*if (monsters.size() < 10000 && (rand() % 100) == 1) {
-            short x, y;
-            do {
-                x = static_cast<short>(rand());
-                y = static_cast<short>(rand());
-            } while (field.blocking(x, y) ||
-                     field.blocking(x + 1, y) ||
-                     field.blocking(x + 1, y + 1) ||
-                     field.blocking(x, y + 1));
-            std::lock_guard<std::mutex> lock(monsters_guard);
-            auto newmonster = std::make_shared<Monster>(rand() % 1000000 + 10000, x, y);
-            monsters.insert(newmonster);
-            messages.push(Command::create().add('M').add(newmonster->getId()).add(
-                    newmonster->getHealth()).add(
-                    newmonster->getX()).add(
-                    newmonster->getY()).getMessage());
-        }*/
         if (count % 100)
             messages.push(Command::create().add('p').add("pingellekgeco").getMessage());//debug
         while (!messages.empty()) {
@@ -270,22 +253,8 @@ void InformationServer::handleSend(const boost::system::error_code &error,
 
 
 void InformationServer::MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
-                              std::mutex &monsters_guard,
-                              Tile &field) {
-    //todo make it much better please
-    while (run ) {
-        if(monsters.size() < 1000000000) {
-            short x, y;
-            do {
-                x = static_cast<short>(rand());
-                y = static_cast<short>(rand());
-            } while (field.blocking(x, y) ||
-                     field.blocking(x + 1, y) ||
-                     field.blocking(x + 1, y + 1) ||
-                     field.blocking(x, y + 1));
-            std::lock_guard<std::mutex> lock(monsters_guard);
-            monsters.insert(std::make_shared<Monster>(rand() % 1000000 + 10000, x, y));
-        } else
-            std::this_thread::sleep_for(std::chrono::milliseconds(8));
-    }
+                                        std::mutex &monsters_guard,
+                                        std::map<unsigned short, std::shared_ptr<Player>> &players,
+                                        std::mutex &players_guard,
+                                        Tile &field) {
 }

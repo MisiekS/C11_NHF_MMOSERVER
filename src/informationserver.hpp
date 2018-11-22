@@ -57,9 +57,12 @@ public:
               db{std::make_shared<Database>("db.sqlite3")} {}
 
     void run();
-    static void MonsterCreation(bool &run,std::set<std::shared_ptr<Monster>> &monsters,
-                                               std::mutex &monsters_guard,
-                                               Tile &field);
+
+    static void MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
+                                std::mutex &monsters_guard,
+                                std::map<unsigned short, std::shared_ptr<Player>> &players,
+                                std::mutex &players_guard,
+                                Tile &field);
 
 private:
     void handleRead(std::shared_ptr<tcp::socket> socket,

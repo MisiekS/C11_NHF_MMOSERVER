@@ -11,8 +11,8 @@ enum Actions {
 };
 
 namespace PlayerActionTimes {
-    constexpr static std::chrono::milliseconds Attack{1000};
-    constexpr static std::chrono::milliseconds Move{1000};
+    constexpr static std::chrono::milliseconds Attack{300};
+    constexpr static std::chrono::milliseconds Move{250};
     constexpr static std::chrono::milliseconds Stand{0};
     constexpr static std::chrono::milliseconds Move_animation{0};
 

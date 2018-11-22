@@ -5,7 +5,8 @@ void Server::run() {
 //todo thread
     bool monster_thread_run = true;
     std::thread ms{InformationServer::MonsterCreation, std::ref(monster_thread_run),
-                   std::ref(monsters), std::ref(monsters_guard), std::ref(field)};
+                   std::ref(monsters), std::ref(monsters_guard),
+                   std::ref(players),std::ref(players_guard), std::ref(field)};
 
     boost::asio::io_context io_is;
     boost::asio::io_context io_as;
