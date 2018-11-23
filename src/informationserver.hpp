@@ -60,9 +60,8 @@ public:
 
     static void MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
                                 std::mutex &monsters_guard,
-                                std::map<unsigned short, std::shared_ptr<Player>> &players,
-                                std::mutex &players_guard,
-                                Tile &field);
+                                Tile &field,
+                                std::vector<std::pair<char,char>>& areas);
 
 private:
     void handleRead(std::shared_ptr<tcp::socket> socket,

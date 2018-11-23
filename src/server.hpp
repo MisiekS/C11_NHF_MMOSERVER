@@ -24,12 +24,11 @@ class Server {
     std::set<std::shared_ptr<Monster>> monsters;
     std::mutex monsters_guard;
     std::queue<std::vector<char>> messages;
+    std::vector<std::pair<char,char>> areas{1024*1024};
     unsigned short port;
 
 public:
-    explicit Server(unsigned short port) : port{port}, field{monsters, players} {
-
-    }
+    explicit Server(unsigned short port) : port{port}, field{monsters, players} {}
 
     void run();
 };

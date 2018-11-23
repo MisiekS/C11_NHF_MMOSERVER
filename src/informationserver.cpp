@@ -68,9 +68,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
     if (!err) {
         auto &f = *buff;
         if (!f.empty()) {
-            // std::cout << std::string(f.begin(), f.end()) << std::endl;
             cmd->insert(cmd->end(), f.begin(), std::find(f.begin(), f.end(), 0));
-            //   std::cout << std::string(cmd->begin(), cmd->end()) << std::endl;
         }
 
         auto received = Command::get(*cmd);
@@ -106,6 +104,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                     players.erase(player->getId());
                                 players.insert(std::make_pair(player->getId(), player));
                             }
+
                             std::queue<std::vector<char>> login_messages;
                             {
                                 std::lock_guard<std::mutex> lock(players_guard);
@@ -137,7 +136,6 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                                     boost::asio::placeholders::bytes_transferred));
                                 login_messages.pop();
                             }
-
 
                             std::cout << player->getId() << " succesfully logged in" << std::endl;
                         } else {
@@ -201,32 +199,45 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
 
                 case 'M':
                     if (received.size() > 1) {
-
-                        auto mm = *std::find_if(monsters.begin(), monsters.end(), [&](auto &it) {
-                            return it->getId() == boost::lexical_cast<int>(received[1]);
-                        });
-                        socket->async_send(
-                                boost::asio::buffer(Command::create().add('M').add(mm->getId()).add(
-                                        mm->getHealth()).add(
-                                        mm->getX()).add(
-                                        mm->getY()).getMessage()),
-                                boost::bind(&InformationServer::handleSend, this,
-                                            boost::asio::placeholders::error,
-                                            boost::asio::placeholders::bytes_transferred));
+                        {
+                            std::lock_guard<std::mutex> lock(monsters_guard);
+                            auto mmm = std::find_if(monsters.begin(), monsters.end(),
+                                                    [&](auto &it) {
+                                                        return it->getId() ==
+                                                               boost::lexical_cast<int>(
+                                                                       received[1]);
+                                                    });
+                            if (mmm != monsters.end()) {
+                                auto mm = *mmm;
+                                socket->async_send(
+                                        boost::asio::buffer(
+                                                Command::create().add('M').add(mm->getId()).add(
+                                                        mm->getHealth()).add(
+                                                        mm->getX()).add(
+                                                        mm->getY()).getMessage()),
+                                        boost::bind(&InformationServer::handleSend, this,
+                                                    boost::asio::placeholders::error,
+                                                    boost::asio::placeholders::bytes_transferred));
+                            }
+                        }
                     }
                     break;
                 case 'P':
                     if (received.size() > 1) {
-                        auto mm = players[boost::lexical_cast<unsigned short>(received[1])];
-                        socket->async_send(
-                                boost::asio::buffer(Command::create().add('0').add(
-                                                mm->getUsername())
-                                                            .add(mm->getId()).add(
-                                                mm->getX())
-                                                            .add(mm->getY()).getMessage()),
-                                boost::bind(&InformationServer::handleSend, this,
-                                            boost::asio::placeholders::error,
-                                            boost::asio::placeholders::bytes_transferred));
+                        {
+                            std::lock_guard<std::mutex> lock(players_guard);
+                            auto mm = players[boost::lexical_cast<unsigned short>(received[1])];
+                            if (mm != nullptr)
+                                socket->async_send(
+                                        boost::asio::buffer(Command::create().add('0').add(
+                                                        mm->getUsername())
+                                                                    .add(mm->getId()).add(
+                                                        mm->getX())
+                                                                    .add(mm->getY()).getMessage()),
+                                        boost::bind(&InformationServer::handleSend, this,
+                                                    boost::asio::placeholders::error,
+                                                    boost::asio::placeholders::bytes_transferred));
+                        }
                     }
                     break;
 
@@ -254,7 +265,32 @@ void InformationServer::handleSend(const boost::system::error_code &error,
 
 void InformationServer::MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
                                         std::mutex &monsters_guard,
-                                        std::map<unsigned short, std::shared_ptr<Player>> &players,
-                                        std::mutex &players_guard,
-                                        Tile &field) {
+                                        Tile &field,
+                                        std::vector<std::pair<char, char>> &areas) {
+    srand(time(NULL));
+    int counter = 1;
+    while (run) {
+        for (short i = 0; i < 1024; ++i)
+            for (short j = 0; j < 1024; ++j) {
+                if(!run)
+                    return;
+                if (areas[i + j * 1024].first < areas[i + j * 1024].second) {
+                    short x = rand() % 64 + i * 64;
+                    short y = rand() % 64 + j * 64;
+                    if (!(field.blocking(x, y) || field.blocking(x + 1, y) ||
+                          field.blocking(x + 1, y + 1) || field.blocking(x, y + 1))) {
+                        std::lock_guard<std::mutex> lock{monsters_guard};
+                        monsters.insert(std::make_shared<Monster>(rand() % 100000 + 50000, x, y));
+                        ++areas[i + j * 1024].first;
+                        counter++;
+                    }
+                }
+            }
+
+        if (counter > 100000) {
+            std::cout << "100k mob" << std::endl;
+            counter-=100000;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    }
 }

@@ -39,7 +39,7 @@ class ActionServer {
     udp::socket socket_;
     udp::endpoint remote_endpoint_;
     std::vector<char> buffer;
-    //hits
+    std::vector<std::pair<char,char>> & areas;
 
 public:
     ActionServer(boost::asio::io_context &io_context,
@@ -47,7 +47,8 @@ public:
                  std::mutex &players_guard,
                  std::set<std::shared_ptr<Monster>> &monsters,
                  std::mutex &monsters_guard, unsigned short port,
-                 std::queue<std::vector<char>> &messages, Tile &field
+                 std::queue<std::vector<char>> &messages, Tile &field,
+                 std::vector<std::pair<char,char>>& areas
     )
             : players{players},
               players_guard{players_guard},
@@ -57,6 +58,7 @@ public:
               io_context{io_context},
               messages{messages},
               field{field},
+              areas{areas},
               socket_{io_context, udp::endpoint(udp::v4(), port)} {}
 
     void run();

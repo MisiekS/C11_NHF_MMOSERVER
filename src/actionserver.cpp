@@ -178,6 +178,7 @@ void ActionServer::loop(bool &run_loop) {
                                 m->hit(hit);
 
                                 if (m->getHealth() <= 0) {
+                                    areas[(m->getX()>>6)|((m->getY()>>6)<<10)].first--;
                                     messages.push(Command::create().add('K').add(
                                             m->getId()).getMessage());
                                     monsters.erase(m);

@@ -2,11 +2,29 @@
 
 void Server::run() {
     bool doexit = false;
-//todo thread
+
+    //todo fill areas please
+    std::chrono::high_resolution_clock::time_point start =std::chrono::high_resolution_clock::now();
+
+    for (short i = 0; i < 1024; ++i)
+        for (short j = 0; j < 1024; ++j) {
+            int nb = 0;
+            for (short x = 0; x < 64; ++x)
+                for (short y = 0; y < 64; ++y)
+                    if (field.blocking(i * 64 + x, j * 64 + y))
+                        nb++;
+            areas[i + j * 1024].first = 0;
+            areas[i + j * 1024].second = static_cast<char>((1024-nb)/10);
+        }
+
+    std::chrono::high_resolution_clock::time_point end =std::chrono::high_resolution_clock::now();
+    auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::chrono::duration<long, std::milli> int_usec = int_ms;
+    std::cout << int_usec.count() <<std::endl;
+
     bool monster_thread_run = true;
     std::thread ms{InformationServer::MonsterCreation, std::ref(monster_thread_run),
-                   std::ref(monsters), std::ref(monsters_guard),
-                   std::ref(players),std::ref(players_guard), std::ref(field)};
+                   std::ref(monsters), std::ref(monsters_guard), std::ref(field), std::ref(areas)};
 
     boost::asio::io_context io_is;
     boost::asio::io_context io_as;
@@ -15,7 +33,7 @@ void Server::run() {
 
 
     ActionServer as{io_as, players, players_guard, monsters,
-                    monsters_guard, port, messages, field};
+                    monsters_guard, port, messages, field, areas};
 
     std::thread as_t{&ActionServer::run, &as};
     std::thread is_t(&InformationServer::run, &is);
@@ -36,10 +54,11 @@ void Server::run() {
             }
         }
     }
+    std::cout << "server shutting down"<<std::endl;
     monster_thread_run = false;
-    ms.join();
     io_as.stop();
     as_t.join();
     io_is.stop();
     is_t.join();
+    ms.join();
 }
