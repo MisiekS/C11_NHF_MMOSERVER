@@ -10,11 +10,11 @@
 #include "monster.hpp"
 
 class Tile {
-    std::set<std::shared_ptr<Monster>> &monsters;
+    std::vector<std::shared_ptr<Monster>> &monsters;
     std::map<unsigned short, std::shared_ptr<Player>>& players;
 
 public:
-    Tile(std::set<std::shared_ptr<Monster>> &monsters, std::map<unsigned short, std::shared_ptr<Player>> &players)
+    Tile(std::vector<std::shared_ptr<Monster>> &monsters, std::map<unsigned short, std::shared_ptr<Player>> &players)
             : monsters{monsters}, players{players} {}
 
     bool blocking(short x, short y) const noexcept {
@@ -27,7 +27,7 @@ public:
             || (m->getX()+1 == x && m->getY() == y) || (m->getX()+1 == x && m->getY()+1 == y))
                 return true;
 
-        for (auto p:players)
+        for (auto const &p:players)
             if (p.second->getX() == x && p.second->getY() == y)
                 return true;
             else if (p.second->getActions() == Actions::Move)

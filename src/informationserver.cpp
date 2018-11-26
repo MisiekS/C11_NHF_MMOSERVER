@@ -1,5 +1,7 @@
 #include "informationserver.hpp"
 
+std::condition_variable players_cv;
+
 void InformationServer::run() {
     startAccept();
     bool run_loop = true;
@@ -17,7 +19,7 @@ void InformationServer::loop(bool &run_loop) {
         if (count % 100)
             messages.push(Command::create().add('p').add("pingellekgeco").getMessage());//debug
         while (!messages.empty()) {
-            std::lock_guard<std::mutex> lock(players_guard);
+            std::shared_lock<std::shared_mutex> lock(players_guard);
             for (auto player : players)
                 player.second->get_tcp_socket()->async_send(
                         boost::asio::buffer(messages.front()),
@@ -73,15 +75,10 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
 
         auto received = Command::get(*cmd);
 
-        if (!received.empty()) {
+        while (!received.empty()) {
             switch (received[0][0]) {
                 case '0':
                     if (received.size() > 2) {
-                        // login
-
-                        //todo make login smarter
-                        //i mean it can handle logins that already logged in
-
                         std::string username = received[1];
                         std::string password = received[2];
                         auto player = db->login(username, password);
@@ -99,7 +96,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                             std::cout << "he" << std::endl;
                             player->set_tcp_socket(socket);
                             {
-                                std::lock_guard<std::mutex> lock(players_guard);
+                                std::unique_lock<std::shared_mutex> lock(players_guard);
                                 if (players.find(player->getId()) != players.end())
                                     players.erase(player->getId());
                                 players.insert(std::make_pair(player->getId(), player));
@@ -107,7 +104,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
 
                             std::queue<std::vector<char>> login_messages;
                             {
-                                std::lock_guard<std::mutex> lock(players_guard);
+                                std::shared_lock<std::shared_mutex> lock(players_guard);
                                 for (auto p:players)
                                     if (Tile::indistance(p.second->getX(), p.second->getY(),
                                                          player->getX(), player->getY(), 50))
@@ -118,7 +115,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                                                     .add(p.second->getY()).getMessage());
                             }
                             {
-                                std::lock_guard<std::mutex> lock(monsters_guard);
+                                std::unique_lock<std::mutex> lock(monsters_guard);
                                 for (auto m:monsters)
                                     if (Tile::indistance(m->getX(), m->getY(), player->getX(),
                                                          player->getY(), 50))
@@ -149,10 +146,8 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                         }
                     }
                     break;
-                case '1':
+                case '1':{
                     if (received.size() > 1) {
-                        // logout
-                        // such an unsafe method
                         auto player_id = boost::lexical_cast<unsigned short>(received[1]);
                         auto player_q = std::find_if(players.begin(), players.end(), [&](auto &it) {
                             return it.second->get_tcp_socket() == socket;
@@ -161,15 +156,23 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                         auto player = player_q->second;
                         if (player->getId() != player_id)break;
                         db->save(player);
-                        players.erase(players.find(player_id));
+                        {
+                            std::unique_lock<std::shared_mutex> lock{players_guard};
+                            players.erase(player_id);
+                        }
                         std::string username = player->getUsername();
                         auto logoutmessage = Command::create().add('1').add(
                                 player->getId()).getMessage();
                         messages.push(logoutmessage);
+                        socket->async_send(
+                                boost::asio::buffer(Command::create().add('1').getMessage()),
+                                boost::bind(&InformationServer::handleSend, this,
+                                            boost::asio::placeholders::error,
+                                            boost::asio::placeholders::bytes_transferred));
                         socket->close();
                         std::cout << player_id << " succesfully logged out" << std::endl;
                         return;
-                    }
+                    }}
                     break;
                 case '2':
                     // registration
@@ -200,7 +203,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                 case 'M':
                     if (received.size() > 1) {
                         {
-                            std::lock_guard<std::mutex> lock(monsters_guard);
+                            std::unique_lock<std::mutex> lock(monsters_guard);
                             auto mmm = std::find_if(monsters.begin(), monsters.end(),
                                                     [&](auto &it) {
                                                         return it->getId() ==
@@ -225,7 +228,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                 case 'P':
                     if (received.size() > 1) {
                         {
-                            std::lock_guard<std::mutex> lock(players_guard);
+                            std::shared_lock<std::shared_mutex> lock(players_guard);
                             auto mm = players[boost::lexical_cast<unsigned short>(received[1])];
                             if (mm != nullptr)
                                 socket->async_send(
@@ -244,6 +247,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                 default:
                     break;
             }
+            received = Command::get(*cmd);
         }
     }
     buff = std::make_shared<std::vector<char>>(256, 0);
@@ -255,42 +259,69 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
 
 void InformationServer::handleSend(const boost::system::error_code &error,
                                    std::size_t bytes_transferred) {
-    //TODO
     if (error) {
         std::cout << "tcp error" << std::endl;
-        //too much error -> logout
     }
 }
 
 
-void InformationServer::MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
+void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<Monster>> &monsters,
                                         std::mutex &monsters_guard,
                                         Tile &field,
+                                        std::map<unsigned short, std::shared_ptr<Player>> &players,
+                                        std::shared_mutex &players_guard,
                                         std::vector<std::pair<char, char>> &areas) {
     srand(time(NULL));
-    int counter = 1;
+    std::cout << "mobs are spawning" << std::endl;
     while (run) {
-        for (short i = 0; i < 1024; ++i)
-            for (short j = 0; j < 1024; ++j) {
-                if(!run)
-                    return;
-                if (areas[i + j * 1024].first < areas[i + j * 1024].second) {
-                    short x = rand() % 64 + i * 64;
-                    short y = rand() % 64 + j * 64;
-                    if (!(field.blocking(x, y) || field.blocking(x + 1, y) ||
-                          field.blocking(x + 1, y + 1) || field.blocking(x, y + 1))) {
-                        std::lock_guard<std::mutex> lock{monsters_guard};
-                        monsters.insert(std::make_shared<Monster>(rand() % 100000 + 50000, x, y));
-                        ++areas[i + j * 1024].first;
-                        counter++;
-                    }
+        std::set<std::pair<short, short>> ca;
+        {
+            std::shared_lock<std::shared_mutex> lock{players_guard};
+            for (auto const &p:players) {
+                auto player = p.second;
+                ca.insert({
+                                  {(player->getX() >> 6) - 1, (player->getY() >> 6) - 1},
+                                  {(player->getX() >> 6),     (player->getY() >> 6) - 1},
+                                  {(player->getX() >> 6) + 1, (player->getY() >> 6) - 1},
+                                  {(player->getX() >> 6) - 1, (player->getY() >> 6)},
+                                  {(player->getX() >> 6),     (player->getY() >> 6)},
+                                  {(player->getX() >> 6) + 1, (player->getY() >> 6)},
+                                  {(player->getX() >> 6) - 1, (player->getY() >> 6) + 1},
+                                  {(player->getX() >> 6),     (player->getY() >> 6) + 1},
+                                  {(player->getX() >> 6) + 1, (player->getY() >> 6) + 1},
+                          });
+            }
+        }
+        {
+            std::unique_lock<std::mutex> lock{monsters_guard};
+            for (auto &cca: ca) {
+                if (areas[(cca.first + 512) | ((cca.second + 512) << 10)].first <
+                    areas[(cca.first + 512) | ((cca.second + 512) << 10)].second) {
+                    short x = static_cast<short>(rand() % 64) | static_cast<short>(cca.first << 6);
+                    short y = static_cast<short>(rand() % 64) | static_cast<short>(cca.second << 6);
+                    if ((field.blocking(x, y) || field.blocking(x + 1, y) ||
+                         field.blocking(x + 1, y + 1) || field.blocking(x, y + 1)))
+                        continue;
+                    monsters.push_back(std::make_shared<Monster>(rand() % 500000 + 50000, x, y));
+                    ++areas[(cca.first + 512) | ((cca.second + 512) << 10)].first;
                 }
             }
-
-        if (counter > 100000) {
-            std::cout << "100k mob" << std::endl;
-            counter-=100000;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        {
+            std::unique_lock<std::mutex> lock{monsters_guard};
+            for (auto &monster:monsters) {
+                bool gotcha = false;
+                for (auto const &cca:ca) {
+                    if ((monster->getX() >> 6) == cca.first &&
+                        (monster->getY() >> 6) == cca.second) {
+                        gotcha = true;
+                        continue;
+                    }
+                }
+                if (gotcha)continue;
+                else monsters.erase(std::find(monsters.begin(), monsters.end(), monster));
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     }
 }

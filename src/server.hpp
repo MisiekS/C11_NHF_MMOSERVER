@@ -1,5 +1,6 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP 1
+#include <shared_mutex>
 
 #include <boost/asio.hpp>
 #include <map>
@@ -19,9 +20,9 @@
 
 class Server {
     std::map<unsigned short, std::shared_ptr<Player>> players;
-    std::mutex players_guard;
+    std::shared_mutex players_guard;
     Tile field;
-    std::set<std::shared_ptr<Monster>> monsters;
+    std::vector<std::shared_ptr<Monster>> monsters;
     std::mutex monsters_guard;
     std::queue<std::vector<char>> messages;
     std::vector<std::pair<char,char>> areas{1024*1024};

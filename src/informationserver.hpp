@@ -14,6 +14,7 @@
 #include <queue>
 #include <set>
 #include <string>
+#include <shared_mutex>
 #include <algorithm>
 
 #include "database.hpp"
@@ -23,25 +24,26 @@
 
 using boost::asio::ip::tcp;
 
+
 // logging, new player, new mob, map, tiles, mob dies
 class InformationServer
         : public std::enable_shared_from_this<InformationServer> {
     std::map<unsigned short, std::shared_ptr<Player>> &players;
-    std::mutex &players_guard;
+    std::shared_mutex &players_guard;
     unsigned short port;
     tcp::acceptor acceptor_;
     std::shared_ptr<Database> db;
     std::queue<std::vector<char>> &messages;
     boost::asio::io_context &io_context;
-    std::set<std::shared_ptr<Monster>> &monsters;
+    std::vector<std::shared_ptr<Monster>> &monsters;
     std::mutex &monsters_guard;
     Tile &field;
 
 public:
     InformationServer(boost::asio::io_context &io_context,
                       std::map<unsigned short, std::shared_ptr<Player>> &players,
-                      std::mutex &players_guard,
-                      std::set<std::shared_ptr<Monster>> &monsters,
+                      std::shared_mutex &players_guard,
+                      std::vector<std::shared_ptr<Monster>> &monsters,
                       std::mutex &monsters_guard, unsigned short port,
                       std::queue<std::vector<char>> &messages,
                       Tile &field)
@@ -58,9 +60,11 @@ public:
 
     void run();
 
-    static void MonsterCreation(bool &run, std::set<std::shared_ptr<Monster>> &monsters,
+    static void MonsterCreation(bool &run, std::vector<std::shared_ptr<Monster>> &monsters,
                                 std::mutex &monsters_guard,
                                 Tile &field,
+                                std::map<unsigned short, std::shared_ptr<Player>> &players,
+                                std::shared_mutex &players_guard,
                                 std::vector<std::pair<char,char>>& areas);
 
 private:

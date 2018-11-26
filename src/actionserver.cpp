@@ -32,7 +32,7 @@ void ActionServer::handle_receive(const boost::system::error_code &error,
             auto player = playerr->second;
             if (playerr != players.end() && player->getSecret() == cmd[2]) {
                 {
-                    std::lock_guard<std::mutex> lock(endpoints_of_last_min_guard);
+                    std::unique_lock<std::mutex> lock(endpoints_of_last_min_guard);
                     auto e = endpoints_of_last_min.find(std::make_pair(remote_endpoint_, player));
                     if (e == endpoints_of_last_min.end())
                         endpoints_of_last_min.insert(
@@ -134,7 +134,7 @@ void ActionServer::loop(bool &run_loop) {
         //todo per player maybe... too much monster udp
         std::list<std::pair<std::pair<short, short>, std::vector<char>>> current_messages;
         {
-            std::lock_guard<std::mutex> lock(players_guard);
+            std::shared_lock<std::shared_mutex> lock(players_guard);
             for (auto p:players) {
                 if (p.second->getActions() == Actions::Attack &&
                     p.second->getActionpercent() > 50 &&
@@ -142,7 +142,7 @@ void ActionServer::loop(bool &run_loop) {
                     p.second->getAction().setCompleted(true);
                     bool monster = false;
                     {
-                        std::lock_guard<std::mutex> lock(monsters_guard);
+                        std::unique_lock<std::mutex> lock(monsters_guard);
                         MONSTER_LOOP:
                         for (auto m:monsters) {
                             std::pair<short, short> cord;
@@ -178,10 +178,10 @@ void ActionServer::loop(bool &run_loop) {
                                 m->hit(hit);
 
                                 if (m->getHealth() <= 0) {
-                                    areas[(m->getX()>>6)|((m->getY()>>6)<<10)].first--;
+                                    areas[((m->getX()>>6)+512)|(((m->getY()>>6)+512)<<10)].first--;
                                     messages.push(Command::create().add('K').add(
                                             m->getId()).getMessage());
-                                    monsters.erase(m);
+                                    monsters.erase(std::find(monsters.begin(),monsters.end(),m));
                                 }
                                 break;
                             }
@@ -253,7 +253,7 @@ void ActionServer::loop(bool &run_loop) {
         }
 
         {
-            std::lock_guard<std::mutex> lock(monsters_guard);
+            std::unique_lock<std::mutex> lock(monsters_guard);
             for (auto m:monsters)
                 current_messages.push_back(
                         std::make_pair(std::make_pair(m->getX(), m->getY()),
@@ -262,7 +262,7 @@ void ActionServer::loop(bool &run_loop) {
                                                m->getDir()).getMessage()));
         }
         {
-            std::lock_guard<std::mutex> lock(endpoints_of_last_min_guard);
+            std::unique_lock<std::mutex> lock(endpoints_of_last_min_guard);
             for (auto r: endpoints_of_last_min)
                 for (auto m: current_messages)
                     if (Tile::indistance(m.first.first, m.first.second, r.first.second->getX(),
@@ -275,7 +275,7 @@ void ActionServer::loop(bool &run_loop) {
 
         auto time = std::chrono::steady_clock::now();
         {
-            std::lock_guard<std::mutex> lock(endpoints_of_last_min_guard);
+            std::unique_lock<std::mutex> lock(endpoints_of_last_min_guard);
             std::for_each(endpoints_of_last_min.begin(), endpoints_of_last_min.end(),
                           [&](auto &it) {
                               if (std::chrono::duration_cast<std::chrono::microseconds>(
