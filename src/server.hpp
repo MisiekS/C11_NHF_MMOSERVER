@@ -23,7 +23,7 @@ class Server {
     std::shared_mutex players_guard;
     Tile field;
     std::vector<std::shared_ptr<Monster>> monsters;
-    std::mutex monsters_guard;
+    std::shared_mutex monsters_guard;
     std::queue<std::vector<char>> messages;
     std::vector<std::pair<char,char>> areas{1024*1024};
     unsigned short port;

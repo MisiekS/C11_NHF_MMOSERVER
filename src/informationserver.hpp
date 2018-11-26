@@ -36,7 +36,7 @@ class InformationServer
     std::queue<std::vector<char>> &messages;
     boost::asio::io_context &io_context;
     std::vector<std::shared_ptr<Monster>> &monsters;
-    std::mutex &monsters_guard;
+    std::shared_mutex &monsters_guard;
     Tile &field;
 
 public:
@@ -44,7 +44,7 @@ public:
                       std::map<unsigned short, std::shared_ptr<Player>> &players,
                       std::shared_mutex &players_guard,
                       std::vector<std::shared_ptr<Monster>> &monsters,
-                      std::mutex &monsters_guard, unsigned short port,
+                      std::shared_mutex &monsters_guard, unsigned short port,
                       std::queue<std::vector<char>> &messages,
                       Tile &field)
             : players{players},
@@ -61,7 +61,7 @@ public:
     void run();
 
     static void MonsterCreation(bool &run, std::vector<std::shared_ptr<Monster>> &monsters,
-                                std::mutex &monsters_guard,
+                                std::shared_mutex &monsters_guard,
                                 Tile &field,
                                 std::map<unsigned short, std::shared_ptr<Player>> &players,
                                 std::shared_mutex &players_guard,

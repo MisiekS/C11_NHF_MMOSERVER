@@ -49,7 +49,7 @@ void Server::run() {
             std::vector<char> cc{cmd.begin(), cmd.end()};
             auto c = Command::get(cc);
             {
-                std::unique_lock<std::mutex> lock{monsters_guard};
+                std::unique_lock<std::shared_mutex> lock{monsters_guard};
                 monsters.push_back(std::make_shared<Monster>(boost::lexical_cast<int>(c[1]),
                                                              boost::lexical_cast<short>(c[2]),
                                                              boost::lexical_cast<short>(c[3])));

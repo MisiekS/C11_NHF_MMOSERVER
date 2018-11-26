@@ -28,6 +28,7 @@ void ActionServer::handle_receive(const boost::system::error_code &error,
         auto cmd = Command::getUdp(buffer);
         buffer.reserve(256);
         if (cmd.size() > 2) {
+            std::shared_lock<std::shared_mutex> player_lock{players_guard};
             auto playerr = players.find(boost::lexical_cast<unsigned short>(cmd[1]));
             auto player = playerr->second;
             if (playerr != players.end() && player->getSecret() == cmd[2]) {
@@ -107,7 +108,6 @@ void ActionServer::handle_receive(const boost::system::error_code &error,
                         }
                         break;
                     case 'S':
-                        //todo
                         if(player->getActions()==Actions::Move_animation)
                             player->setAction(Action{PlayerActionTimes::Stand,
                                                      Actions::Stand});
@@ -131,20 +131,18 @@ void ActionServer::loop(bool &run_loop) {
 
     std::cout << "action server loop" << std::endl;
     while (run_loop) {
-        //todo per player maybe... too much monster udp
         std::list<std::pair<std::pair<short, short>, std::vector<char>>> current_messages;
         {
             std::shared_lock<std::shared_mutex> lock(players_guard);
-            for (auto p:players) {
+            for (auto & p:players) {
                 if (p.second->getActions() == Actions::Attack &&
                     p.second->getActionpercent() > 50 &&
                     !p.second->getAction().getCompleted()) {
                     p.second->getAction().setCompleted(true);
                     bool monster = false;
                     {
-                        std::unique_lock<std::mutex> lock(monsters_guard);
-                        MONSTER_LOOP:
-                        for (auto m:monsters) {
+                        std::unique_lock<std::shared_mutex> mlock(monsters_guard);
+                        for (auto &m:monsters) {
                             std::pair<short, short> cord;
                             switch (p.second->getDir()) {
                                 case North:
@@ -253,8 +251,8 @@ void ActionServer::loop(bool &run_loop) {
         }
 
         {
-            std::unique_lock<std::mutex> lock(monsters_guard);
-            for (auto m:monsters)
+            std::shared_lock<std::shared_mutex> lock(monsters_guard);
+            for (auto const & m:monsters)
                 current_messages.push_back(
                         std::make_pair(std::make_pair(m->getX(), m->getY()),
                                        Command::create().add('Y').add(m->getId()).add(
@@ -266,7 +264,7 @@ void ActionServer::loop(bool &run_loop) {
             for (auto r: endpoints_of_last_min)
                 for (auto m: current_messages)
                     if (Tile::indistance(m.first.first, m.first.second, r.first.second->getX(),
-                                         r.first.second->getY(), 50))
+                                         r.first.second->getY(), 20))
                         socket_.async_send_to(boost::asio::buffer(m.second), r.first.first,
                                               boost::bind(&ActionServer::handle_send, this,
                                                           boost::asio::placeholders::error,

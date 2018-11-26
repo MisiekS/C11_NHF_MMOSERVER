@@ -10,4 +10,3 @@ valami:
 db:
 	g++ src/database.cpp -o out/database.o -c -g
 	g++ src/dbtest.cpp out/database.o -o dbtest.o -lpthread -lboost_system -lsqlite3 -g
-

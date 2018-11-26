@@ -107,7 +107,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                 std::shared_lock<std::shared_mutex> lock(players_guard);
                                 for (auto p:players)
                                     if (Tile::indistance(p.second->getX(), p.second->getY(),
-                                                         player->getX(), player->getY(), 50))
+                                                         player->getX(), player->getY(), 20))
                                         login_messages.push(Command::create().add('0').add(
                                                         p.second->getUsername())
                                                                     .add(p.second->getId()).add(
@@ -115,10 +115,10 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                                                                     .add(p.second->getY()).getMessage());
                             }
                             {
-                                std::unique_lock<std::mutex> lock(monsters_guard);
-                                for (auto m:monsters)
+                                std::shared_lock<std::shared_mutex> lock(monsters_guard);
+                                for (auto &m:monsters)
                                     if (Tile::indistance(m->getX(), m->getY(), player->getX(),
-                                                         player->getY(), 50))
+                                                         player->getY(), 20))
                                         login_messages.push(
                                                 Command::create().add('M').add(m->getId()).add(
                                                         m->getHealth()).add(
@@ -203,7 +203,7 @@ void InformationServer::handleRead(std::shared_ptr<tcp::socket> socket,
                 case 'M':
                     if (received.size() > 1) {
                         {
-                            std::unique_lock<std::mutex> lock(monsters_guard);
+                            std::shared_lock<std::shared_mutex> lock(monsters_guard);
                             auto mmm = std::find_if(monsters.begin(), monsters.end(),
                                                     [&](auto &it) {
                                                         return it->getId() ==
@@ -266,7 +266,7 @@ void InformationServer::handleSend(const boost::system::error_code &error,
 
 
 void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<Monster>> &monsters,
-                                        std::mutex &monsters_guard,
+                                        std::shared_mutex &monsters_guard,
                                         Tile &field,
                                         std::map<unsigned short, std::shared_ptr<Player>> &players,
                                         std::shared_mutex &players_guard,
@@ -276,7 +276,7 @@ void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<M
     while (run) {
         std::set<std::pair<short, short>> ca;
         {
-            std::shared_lock<std::shared_mutex> lock{players_guard};
+            std::shared_lock<std::shared_mutex> player_lock{players_guard};
             for (auto const &p:players) {
                 auto player = p.second;
                 ca.insert({
@@ -291,9 +291,7 @@ void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<M
                                   {(player->getX() >> 6) + 1, (player->getY() >> 6) + 1},
                           });
             }
-        }
-        {
-            std::unique_lock<std::mutex> lock{monsters_guard};
+            std::unique_lock<std::shared_mutex> lock{monsters_guard};
             for (auto &cca: ca) {
                 if (areas[(cca.first + 512) | ((cca.second + 512) << 10)].first <
                     areas[(cca.first + 512) | ((cca.second + 512) << 10)].second) {
@@ -308,8 +306,8 @@ void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<M
             }
         }
         {
-            std::unique_lock<std::mutex> lock{monsters_guard};
-            for (auto &monster:monsters) {
+            std::unique_lock<std::shared_mutex> lock{monsters_guard};
+            for (auto & monster:monsters) {
                 bool gotcha = false;
                 for (auto const &cca:ca) {
                     if ((monster->getX() >> 6) == cca.first &&
@@ -319,7 +317,10 @@ void InformationServer::MonsterCreation(bool &run, std::vector<std::shared_ptr<M
                     }
                 }
                 if (gotcha)continue;
-                else monsters.erase(std::find(monsters.begin(), monsters.end(), monster));
+                else {
+                    monsters.erase(std::find(monsters.begin(), monsters.end(), monster));
+                    break;
+                }
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
